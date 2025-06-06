@@ -115,22 +115,37 @@ namespace Akka.Persistence.Sql.Journal.Dao
         public async Task Delete(string persistenceId, long maxSequenceNr, CancellationToken cancellationToken)
         {
             using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, ShutdownToken);
+            long maxMarkedDeletion;
+
+            // no need to use transaction
+            await using (var connection = ConnectionFactory.GetConnection())
+            {
+                maxMarkedDeletion = await MaxMarkedForDeletionMaxPersistenceIdQuery(connection, persistenceId, maxSequenceNr).FirstOrDefaultAsync(cts.Token);
+            }
+
+            if (maxMarkedDeletion is 0)
+                return;
+            
             await ConnectionFactory.ExecuteWithTransactionAsync(
                 WriteIsolationLevel,
                 cts.Token,
                 async (connection, token) =>
                 {
-                    await connection
-                        .GetTable<JournalRow>()
+                    var journalTable = connection.GetTable<JournalRow>();
+                    await journalTable
                         .Where(
                             r =>
                                 r.PersistenceId == persistenceId &&
-                                r.SequenceNumber <= maxSequenceNr)
+                                r.SequenceNumber == maxMarkedDeletion)
                         .Set(r => r.Deleted, true)
                         .UpdateAsync(token);
 
-                    var maxMarkedDeletion =
-                        await MaxMarkedForDeletionMaxPersistenceIdQuery(connection, persistenceId).FirstOrDefaultAsync(token);
+                    await journalTable
+                        .Where(
+                            r =>
+                                r.PersistenceId == persistenceId &&
+                                r.SequenceNumber < maxMarkedDeletion)
+                        .DeleteAsync(token);
 
                     if (JournalConfig.DaoConfig.SqlCommonCompatibilityMode)
                     {
@@ -149,19 +164,7 @@ namespace Akka.Persistence.Sql.Journal.Dao
                                     SequenceNumber = maxMarkedDeletion,
                                 },
                                 token: token);
-                    }
 
-                    await connection
-                        .GetTable<JournalRow>()
-                        .Where(
-                            r =>
-                                r.PersistenceId == persistenceId &&
-                                r.SequenceNumber <= maxSequenceNr &&
-                                r.SequenceNumber < maxMarkedDeletion)
-                        .DeleteAsync(token);
-
-                    if (JournalConfig.DaoConfig.SqlCommonCompatibilityMode)
-                    {
                         await connection
                             .GetTable<JournalMetaData>()
                             .Where(
@@ -177,7 +180,7 @@ namespace Akka.Persistence.Sql.Journal.Dao
                             .GetTable<JournalTagRow>()
                             .Where(
                                 r =>
-                                    r.SequenceNumber <= maxSequenceNr &&
+                                    r.SequenceNumber < maxMarkedDeletion &&
                                     r.PersistenceId == persistenceId)
                             .DeleteAsync(token);
                     }
@@ -442,10 +445,11 @@ namespace Akka.Persistence.Sql.Journal.Dao
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static IQueryable<long> MaxMarkedForDeletionMaxPersistenceIdQuery(
             AkkaDataConnection connection,
-            string persistenceId)
+            string persistenceId, 
+            long maxSequenceNr)
             => connection
                 .GetTable<JournalRow>()
-                .Where(r => r.PersistenceId == persistenceId && r.Deleted)
+                .Where(r => r.PersistenceId == persistenceId && r.SequenceNumber <= maxSequenceNr)
                 .OrderByDescending(r => r.SequenceNumber)
                 .Select(r => r.SequenceNumber)
                 .Take(1);
