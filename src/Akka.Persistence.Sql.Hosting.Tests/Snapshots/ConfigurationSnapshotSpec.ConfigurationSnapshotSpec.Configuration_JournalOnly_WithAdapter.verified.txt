@@ -1,0 +1,367 @@
+﻿{
+  Journal:
+  class : "Akka.Persistence.Sql.Journal.SqlWriteJournal, Akka.Persistence.Sql"
+  plugin-id : akka.persistence.journal.sql
+  plugin-dispatcher : akka.persistence.dispatchers.default-plugin-dispatcher
+  connection-string : "DataSource=:memory:"
+  provider-name : SQLite
+  delete-compatibility-mode : false
+  table-mapping : default
+  buffer-size : 5000
+  batch-size : 100
+  db-round-trip-max-batch-size : 1000
+  db-round-trip-max-tag-batch-size : 1000
+  prefer-parameters-on-multirow-insert : false
+  replay-batch-size : 1000
+  parallelism : 3
+  max-row-by-row-size : 100
+  use-clone-connection : true
+  materializer-dispatcher : akka.actor.default-dispatcher
+  tag-write-mode : TagTable
+  tag-separator : ;
+  auto-initialize : on
+  warn-on-auto-init-fail : true
+  dao : "Akka.Persistence.Sql.Journal.Dao.ByteArrayJournalDao, Akka.Persistence.Sql"
+  serializer : 
+  read-isolation-level : unspecified
+  write-isolation-level : unspecified
+  default : {
+    schema-name : 
+    journal : {
+      use-writer-uuid-column : true
+      table-name : journal
+      columns : {
+        ordering : ordering
+        deleted : deleted
+        persistence-id : persistence_id
+        sequence-number : sequence_number
+        created : created
+        tags : tags
+        message : message
+        identifier : identifier
+        manifest : manifest
+        writer-uuid : writer_uuid
+      }
+    }
+    metadata : {
+      table-name : journal_metadata
+      columns : {
+        persistence-id : persistence_id
+        sequence-number : sequence_number
+      }
+    }
+    tag : {
+      table-name : tags
+      columns : {
+        ordering-id : ordering_id
+        tag-value : tag
+        persistence-id : persistence_id
+        sequence-nr : sequence_nr
+      }
+    }
+  }
+  sql-server : {
+    schema-name : dbo
+    journal : {
+      use-writer-uuid-column : false
+      table-name : EventJournal
+      columns : {
+        ordering : Ordering
+        deleted : IsDeleted
+        persistence-id : PersistenceId
+        sequence-number : SequenceNr
+        created : Timestamp
+        tags : Tags
+        message : Payload
+        identifier : SerializerId
+        manifest : Manifest
+      }
+    }
+    metadata : {
+      table-name : Metadata
+      columns : {
+        persistence-id : PersistenceId
+        sequence-number : SequenceNr
+      }
+    }
+  }
+  sqlserver : {
+    schema-name : dbo
+    journal : {
+      use-writer-uuid-column : false
+      table-name : EventJournal
+      columns : {
+        ordering : Ordering
+        deleted : IsDeleted
+        persistence-id : PersistenceId
+        sequence-number : SequenceNr
+        created : Timestamp
+        tags : Tags
+        message : Payload
+        identifier : SerializerId
+        manifest : Manifest
+      }
+    }
+    metadata : {
+      table-name : Metadata
+      columns : {
+        persistence-id : PersistenceId
+        sequence-number : SequenceNr
+      }
+    }
+  }
+  sqlite : {
+    schema-name : 
+    journal : {
+      use-writer-uuid-column : false
+      table-name : event_journal
+      columns : {
+        ordering : ordering
+        deleted : is_deleted
+        persistence-id : persistence_id
+        sequence-number : sequence_nr
+        created : timestamp
+        tags : tags
+        message : payload
+        identifier : serializer_id
+        manifest : manifest
+      }
+    }
+    metadata : {
+      table-name : journal_metadata
+      columns : {
+        persistence-id : persistence_id
+        sequence-number : sequence_nr
+      }
+    }
+  }
+  postgresql : {
+    schema-name : public
+    journal : {
+      use-writer-uuid-column : false
+      table-name : event_journal
+      columns : {
+        ordering : ordering
+        deleted : is_deleted
+        persistence-id : persistence_id
+        sequence-number : sequence_nr
+        created : created_at
+        tags : tags
+        message : payload
+        identifier : serializer_id
+        manifest : manifest
+      }
+    }
+    metadata : {
+      table-name : metadata
+      columns : {
+        persistence-id : persistence_id
+        sequence-number : sequence_nr
+      }
+    }
+  }
+  mysql : {
+    schema-name : 
+    journal : {
+      use-writer-uuid-column : false
+      table-name : event_journal
+      columns : {
+        ordering : ordering
+        deleted : is_deleted
+        persistence-id : persistence_id
+        sequence-number : sequence_nr
+        created : created_at
+        tags : tags
+        message : payload
+        identifier : serializer_id
+        manifest : manifest
+      }
+    }
+    metadata : {
+      table-name : metadata
+      columns : {
+        persistence-id : persistence_id
+        sequence-number : sequence_nr
+      }
+    }
+  }
+  event-adapters : {
+    test-adapter : "Akka.Persistence.Sql.Hosting.Tests.ConfigurationSnapshotSpec+TestEventAdapter, Akka.Persistence.Sql.Hosting.Tests"
+  }
+  event-adapter-bindings : {
+    "Akka.Persistence.Sql.Hosting.Tests.ConfigurationSnapshotSpec+TestEvent, Akka.Persistence.Sql.Hosting.Tests" : [test-adapter]
+  }
+,
+  Query:
+  class : "Akka.Persistence.Sql.Query.SqlReadJournalProvider, Akka.Persistence.Sql"
+  plugin-id : akka.persistence.query.journal.sql
+  write-plugin : akka.persistence.journal.sql
+  max-buffer-size : 500
+  refresh-interval : 1s
+  max-concurrent-queries : 100
+  query-throttle-timeout : 3s
+  connection-string : "DataSource=:memory:"
+  tag-read-mode : TagTable
+  journal-sequence-retrieval : {
+    batch-size : 10000
+    max-tries : 10
+    query-delay : 1s
+    max-backoff-query-delay : 60s
+    ask-timeout : 1s
+  }
+  provider-name : SQLite
+  table-mapping : default
+  buffer-size : 5000
+  batch-size : 100
+  replay-batch-size : 1000
+  parallelism : 3
+  max-row-by-row-size : 100
+  use-clone-connection : true
+  tag-separator : ;
+  read-isolation-level : unspecified
+  dao : "Akka.Persistence.Sql.Journal.Dao.ByteArrayJournalDao, Akka.Persistence.Sql"
+  default : {
+    schema-name : 
+    journal : {
+      use-writer-uuid-column : true
+      table-name : journal
+      columns : {
+        ordering : ordering
+        deleted : deleted
+        persistence-id : persistence_id
+        sequence-number : sequence_number
+        created : created
+        tags : tags
+        message : message
+        identifier : identifier
+        manifest : manifest
+        writer-uuid : writer_uuid
+      }
+    }
+    metadata : {
+      table-name : journal_metadata
+      columns : {
+        persistence-id : persistence_id
+        sequence-number : sequence_number
+      }
+    }
+    tag : {
+      table-name : tags
+      columns : {
+        ordering-id : ordering_id
+        tag-value : tag
+        persistence-id : persistence_id
+        sequence-nr : sequence_nr
+      }
+    }
+  }
+  sql-server : {
+    schema-name : dbo
+    journal : {
+      use-writer-uuid-column : false
+      table-name : EventJournal
+      columns : {
+        ordering : Ordering
+        deleted : IsDeleted
+        persistence-id : PersistenceId
+        sequence-number : SequenceNr
+        created : Timestamp
+        tags : Tags
+        message : Payload
+        identifier : SerializerId
+        manifest : Manifest
+      }
+    }
+    metadata : {
+      table-name : Metadata
+      columns : {
+        persistence-id : PersistenceId
+        sequence-number : SequenceNr
+      }
+    }
+  }
+  sqlite : {
+    schema-name : 
+    journal : {
+      use-writer-uuid-column : false
+      table-name : event_journal
+      columns : {
+        ordering : ordering
+        deleted : is_deleted
+        persistence-id : persistence_id
+        sequence-number : sequence_nr
+        created : timestamp
+        tags : tags
+        message : payload
+        identifier : serializer_id
+        manifest : manifest
+      }
+    }
+    metadata : {
+      table-name : journal_metadata
+      columns : {
+        persistence-id : persistence_id
+        sequence-number : sequence_nr
+      }
+    }
+  }
+  postgresql : {
+    schema-name : public
+    journal : {
+      use-writer-uuid-column : false
+      table-name : event_journal
+      columns : {
+        ordering : ordering
+        deleted : is_deleted
+        persistence-id : persistence_id
+        sequence-number : sequence_nr
+        created : created_at
+        tags : tags
+        message : payload
+        identifier : serializer_id
+        manifest : manifest
+      }
+    }
+    metadata : {
+      table-name : metadata
+      columns : {
+        persistence-id : persistence_id
+        sequence-number : sequence_nr
+      }
+    }
+  }
+  mysql : {
+    schema-name : 
+    journal : {
+      use-writer-uuid-column : false
+      table-name : event_journal
+      columns : {
+        ordering : ordering
+        deleted : is_deleted
+        persistence-id : persistence_id
+        sequence-number : sequence_nr
+        created : created_at
+        tags : tags
+        message : payload
+        identifier : serializer_id
+        manifest : manifest
+      }
+    }
+    metadata : {
+      table-name : metadata
+      columns : {
+        persistence-id : persistence_id
+        sequence-number : sequence_nr
+      }
+    }
+  }
+  serializer : 
+,
+  SnapshotExists: false,
+  EventAdapters:
+  test-adapter : "Akka.Persistence.Sql.Hosting.Tests.ConfigurationSnapshotSpec+TestEventAdapter, Akka.Persistence.Sql.Hosting.Tests"
+,
+  EventAdapterBindings:
+  "Akka.Persistence.Sql.Hosting.Tests.ConfigurationSnapshotSpec+TestEvent, Akka.Persistence.Sql.Hosting.Tests" : [test-adapter]
+
+}
