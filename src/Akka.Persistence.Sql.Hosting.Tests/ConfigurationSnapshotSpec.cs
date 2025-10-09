@@ -197,9 +197,6 @@ public class ConfigurationSnapshotSpec
             .UseMethodName($"{nameof(ConfigurationSnapshotSpec)}.{nameof(Configuration_JournalOnly_WithAdapter)}");
     }
 
-    // NOTE: This test uses a lower-level API (journalBuilder parameter) that was added in v1.5.51.1
-    // Uncomment when running on v1.5.51.1 or later
-    /*
     [Fact]
     public async Task Configuration_SqlJournalOptions_WithAdapter()
     {
@@ -213,7 +210,7 @@ public class ConfigurationSnapshotSpec
                 AutoInitialize = true
             };
 
-            // Using the lower-level API
+            // Using the lower-level API added in v1.5.51.1
             builder.WithSqlPersistence(
                 journalOptions: journalOpt,
                 snapshotOptions: null,
@@ -236,7 +233,6 @@ public class ConfigurationSnapshotSpec
             .UseDirectory("Snapshots")
             .UseMethodName($"{nameof(ConfigurationSnapshotSpec)}.{nameof(Configuration_SqlJournalOptions_WithAdapter)}");
     }
-    */
 
     [Fact]
     public async Task Configuration_CustomPluginId_WithAdapter()
