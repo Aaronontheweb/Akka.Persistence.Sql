@@ -12,6 +12,7 @@ If you're migrating from legacy `Akka.Persistence.Sql.Common` based plugins, you
 - [Akka.Persistence.Sql](#akkapersistencesql)
 - [Getting Started](#getting-started)
   * [The Easy Way, Using `Akka.Hosting`](#the-easy-way-using-akkahosting)
+    + [Health Checks](#health-checks)
   * [The Classic Way, Using HOCON](#the-classic-way-using-hocon)
   * [Supported Database Providers](#supported-database-providers)
     + [Tested Database Providers](#tested-database-providers)
@@ -70,10 +71,63 @@ var host = new HostBuilder()
         });
     });
 ```
-If `dataOptions` are provided, you must supply enough information for linq2db to connect to the database. 
-This includes setting the connection string and provider name again, if necessary for your use case. 
-Please consult the Linq2Db documentation for more details on configuring a valid DataOptions object. 
+If `dataOptions` are provided, you must supply enough information for linq2db to connect to the database.
+This includes setting the connection string and provider name again, if necessary for your use case.
+Please consult the Linq2Db documentation for more details on configuring a valid DataOptions object.
 Note that `MappingSchema` and `RetryPolicy` will always be overridden by Akka.Persistence.Sql.
+
+### Health Checks
+
+Starting with Akka.Persistence.Sql v1.5.51 or later, you can add health checks for your persistence plugins to verify that journals and snapshot stores are properly initialized and accessible. These health checks integrate with `Microsoft.Extensions.Diagnostics.HealthChecks` and can be used with ASP.NET Core health check endpoints.
+
+To configure health checks, use the `journalBuilder` and `snapshotBuilder` parameters with the `.WithHealthCheck()` method:
+
+```csharp
+var host = new HostBuilder()
+    .ConfigureServices((context, services) => {
+        services.AddAkka("my-system-name", (builder, provider) =>
+        {
+            builder.WithSqlPersistence(
+                connectionString: _myConnectionString,
+                providerName: ProviderName.SqlServer2019,
+                journalBuilder: journal => journal.WithHealthCheck(HealthStatus.Degraded),
+                snapshotBuilder: snapshot => snapshot.WithHealthCheck(HealthStatus.Degraded));
+        });
+    });
+```
+
+The health checks will automatically:
+- Verify the persistence plugin is configured correctly
+- Test connectivity to the underlying storage (database, cloud storage, etc.)
+- Report `Healthy` when the plugin is operational
+- Report `Degraded` or `Unhealthy` (configurable) when issues are detected
+
+Health checks are tagged with `akka`, `persistence`, and either `journal` or `snapshot-store` for filtering purposes.
+
+For ASP.NET Core applications, you can expose these health checks via an endpoint:
+
+```csharp
+var builder = WebApplication.CreateBuilder(args);
+
+// Add health checks service
+builder.Services.AddHealthChecks();
+
+builder.Services.AddAkka("my-system-name", (configBuilder, provider) =>
+{
+    configBuilder.WithSqlPersistence(
+        connectionString: _myConnectionString,
+        providerName: ProviderName.SqlServer2019,
+        journalBuilder: journal => journal.WithHealthCheck(),
+        snapshotBuilder: snapshot => snapshot.WithHealthCheck());
+});
+
+var app = builder.Build();
+
+// Map health check endpoint
+app.MapHealthChecks("/healthz");
+
+app.Run();
+```
 
 ## The Classic Way, Using HOCON
 
