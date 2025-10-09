@@ -545,4 +545,48 @@ public class ConfigurationSnapshotSpec
             .UseDirectory("Snapshots")
             .UseMethodName($"{nameof(ConfigurationSnapshotSpec)}.{nameof(Configuration_ComplexScenario_AllOptions)}");
     }
+
+    [Fact]
+    public async Task Configuration_MultipleJournalOptions_WithAdapter()
+    {
+        // Act - test scenario similar to user's bug report where WithSqlPersistence is called with adapters,
+        // then potentially a second JournalOptions is registered (like sharding would do)
+        var config = await BuildAndGetConfig(builder =>
+        {
+            // First call: set up global persistence with event adapters
+            builder.WithSqlPersistence(
+                connectionString: ConnectionString,
+                providerName: TestProviderName,
+                mode: PersistenceMode.Both,
+                journalBuilder: journal => journal
+                    .AddWriteEventAdapter<TestEventAdapter>("status-tagger",
+                        new[] { typeof(TestEvent) }));
+
+            // Second call: simulate what happens when sharding registers additional JournalOptions
+            // This mimics WithShardRegion(..., JournalOptions = shardingJournalOptions)
+            var shardingJournalOptions = new SqlJournalOptions(isDefaultPlugin: false, identifier: "sql")
+            {
+                ConnectionString = ConnectionString,
+                ProviderName = TestProviderName,
+                AutoInitialize = true
+            };
+
+            builder.WithSqlPersistence(
+                journalOptions: shardingJournalOptions,
+                snapshotOptions: null);
+        });
+
+        // Assert - check if event adapters survive the second registration
+        var snapshot = new
+        {
+            Journal = config.GetConfig("akka.persistence.journal.sql").ToString(),
+            Query = config.GetConfig("akka.persistence.query.journal.sql").ToString(),
+            EventAdapters = config.GetConfig("akka.persistence.journal.sql.event-adapters")?.ToString() ?? "null",
+            EventAdapterBindings = config.GetConfig("akka.persistence.journal.sql.event-adapter-bindings")?.ToString() ?? "null"
+        };
+
+        await Verifier.Verify(snapshot)
+            .UseDirectory("Snapshots")
+            .UseMethodName($"{nameof(ConfigurationSnapshotSpec)}.{nameof(Configuration_MultipleJournalOptions_WithAdapter)}");
+    }
 }
