@@ -1,3 +1,7 @@
+#### 1.5.53 October 14th 2025 ####
+
+* [Bump AkkaVersion and AkkaHostingVersion to 1.5.53](https://github.com/akkadotnet/akka.net/releases/tag/1.5.53)
+
 #### 1.5.51.1 October 2nd 2025 ####
 
 * [Fix health check registration bug in Akka.Hosting extensions](https://github.com/akkadotnet/Akka.Persistence.Sql/pull/549)
