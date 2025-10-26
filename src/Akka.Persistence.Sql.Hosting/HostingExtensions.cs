@@ -590,12 +590,14 @@ namespace Akka.Persistence.Sql.Hosting
         /// <param name="journalOptions">The journal options containing connection details</param>
         /// <param name="unHealthyStatus">The status to return when check fails. Defaults to Unhealthy.</param>
         /// <param name="name">Optional name for the health check. Defaults to "Akka.Persistence.Sql.Journal.{id}.Connectivity"</param>
+        /// <param name="tags">Optional tags for the health check. Defaults to ["akka", "persistence", "sql", "journal", "connectivity"]</param>
         /// <returns>The journal builder for chaining</returns>
         public static AkkaPersistenceJournalBuilder WithConnectivityCheck(
             this AkkaPersistenceJournalBuilder builder,
             SqlJournalOptions journalOptions,
             HealthStatus unHealthyStatus = HealthStatus.Unhealthy,
-            string? name = null)
+            string? name = null,
+            string[]? tags = null)
         {
             if (journalOptions is null)
                 throw new ArgumentNullException(nameof(journalOptions));
@@ -610,7 +612,7 @@ namespace Akka.Persistence.Sql.Hosting
                 name ?? $"Akka.Persistence.Sql.Journal.{journalOptions.Identifier}.Connectivity",
                 new SqlJournalConnectivityCheck(journalOptions.ConnectionString!, journalOptions.ProviderName!, journalOptions.Identifier),
                 unHealthyStatus,
-                new[] { "akka", "persistence", "sql", "journal", "connectivity" });
+                tags ?? new[] { "akka", "persistence", "sql", "journal", "connectivity" });
 
             // Use the new WithCustomHealthCheck method from Akka.Hosting 1.5.55-beta1
             return builder.WithCustomHealthCheck(registration);
@@ -624,12 +626,14 @@ namespace Akka.Persistence.Sql.Hosting
         /// <param name="snapshotOptions">The snapshot options containing connection details</param>
         /// <param name="unHealthyStatus">The status to return when check fails. Defaults to Unhealthy.</param>
         /// <param name="name">Optional name for the health check. Defaults to "Akka.Persistence.Sql.SnapshotStore.{id}.Connectivity"</param>
+        /// <param name="tags">Optional tags for the health check. Defaults to ["akka", "persistence", "sql", "snapshot-store", "connectivity"]</param>
         /// <returns>The snapshot builder for chaining</returns>
         public static AkkaPersistenceSnapshotBuilder WithConnectivityCheck(
             this AkkaPersistenceSnapshotBuilder builder,
             SqlSnapshotOptions snapshotOptions,
             HealthStatus unHealthyStatus = HealthStatus.Unhealthy,
-            string? name = null)
+            string? name = null,
+            string[]? tags = null)
         {
             if (snapshotOptions is null)
                 throw new ArgumentNullException(nameof(snapshotOptions));
@@ -644,7 +648,7 @@ namespace Akka.Persistence.Sql.Hosting
                 name ?? $"Akka.Persistence.Sql.SnapshotStore.{snapshotOptions.Identifier}.Connectivity",
                 new SqlSnapshotStoreConnectivityCheck(snapshotOptions.ConnectionString!, snapshotOptions.ProviderName!, snapshotOptions.Identifier),
                 unHealthyStatus,
-                new[] { "akka", "persistence", "sql", "snapshot-store", "connectivity" });
+                tags ?? new[] { "akka", "persistence", "sql", "snapshot-store", "connectivity" });
 
             // Use the new WithCustomHealthCheck method from Akka.Hosting 1.5.55-beta1
             return builder.WithCustomHealthCheck(registration);
