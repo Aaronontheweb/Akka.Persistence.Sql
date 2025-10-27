@@ -2,6 +2,17 @@
 -- Generated for PostgreSQL.15
 -- This table stores actor state snapshots
 
+CREATE TABLE IF NOT EXISTS "public"."snapshot_store" (
+    "persistence_id" text NOT NULL,
+    "sequence_nr" bigint NOT NULL,
+    "created_at" bigint NOT NULL,
+    "payload" bytea,
+    "manifest" text,
+    "serializer_id" integer,
+    CONSTRAINT "PK_snapshot_store" PRIMARY KEY ("persistence_id", "sequence_nr")
+);
+
+
 
 -- Additional constraints and indexes:
 ;

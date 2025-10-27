@@ -2,6 +2,28 @@
 -- Generated for SqlServer.2022
 -- This table stores all persisted events
 
+IF NOT EXISTS (
+    SELECT 1
+    FROM sys.tables
+    WHERE
+        SCHEMA_NAME(schema_id) = 'dbo' AND
+        name = 'EventJournal'
+)
+BEGIN
+    CREATE TABLE [dbo].[EventJournal] (
+    [Ordering] bigint NOT NULL IDENTITY,
+    [Timestamp] bigint NOT NULL,
+    [IsDeleted] bit NOT NULL,
+    [PersistenceId] nvarchar(255) NOT NULL,
+    [SequenceNr] bigint NOT NULL,
+    [Payload] varbinary(max) NOT NULL,
+    [Manifest] nvarchar(500),
+    [SerializerId] int,
+    CONSTRAINT [PK_EventJournal] PRIMARY KEY ([Ordering])
+    );
+END
+
+
 
 -- Additional constraints and indexes:
 ;

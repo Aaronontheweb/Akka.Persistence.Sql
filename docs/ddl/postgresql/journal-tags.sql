@@ -2,6 +2,15 @@
 -- Generated for PostgreSQL.15
 -- This table stores tags in normalized form (TagMode.TagTable)
 
+CREATE TABLE IF NOT EXISTS "public"."tags" (
+    "ordering_id" bigint NOT NULL,
+    "tag" text NOT NULL,
+    "sequence_nr" bigint NOT NULL,
+    "persistence_id" text NOT NULL,
+    CONSTRAINT "PK_tags" PRIMARY KEY ("ordering_id", "tag")
+);
+
+
 
 -- Additional constraints and indexes:
 ;

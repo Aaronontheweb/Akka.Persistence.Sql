@@ -13,6 +13,7 @@ using Akka.Persistence.Sql.Snapshot;
 using Akka.Persistence.Sql.Tests.Common.Containers;
 using LinqToDB;
 using LinqToDB.Data;
+using LinqToDB.Mapping;
 
 namespace Akka.Persistence.Sql.DdlGenerator
 {
@@ -103,22 +104,24 @@ namespace Akka.Persistence.Sql.DdlGenerator
             sql.AppendLine("-- This table stores all persisted events");
             sql.AppendLine();
 
+            var config = await CreateJournalConfig(container);
+
             // Capture table creation first (without footer)
-            // Drop table first, then use TableOptions.None to force CREATE TABLE generation
             var tableSql = await CaptureTableCreationSql(
                 container,
-                async (dataConnection, connection, config) =>
+                config,
+                async (connection) =>
                 {
-                    await dataConnection.DropTableAsync<JournalRow>(throwExceptionIfNotExists: false);
                     await connection.CreateTableAsync<JournalRow>(
                         TableOptions.None,
                         null); // No footer yet
-                });
+                },
+                "journal",
+                config.TableConfig.EventJournalTable.Name);
 
             sql.Append(tableSql);
 
             // Then add the footer SQL as a comment/separate section
-            var config = await CreateJournalConfig(container);
             var footer = config.GenerateJournalFooter();
             if (!string.IsNullOrEmpty(footer))
             {
@@ -138,22 +141,24 @@ namespace Akka.Persistence.Sql.DdlGenerator
             sql.AppendLine("-- This table stores tags in normalized form (TagMode.TagTable)");
             sql.AppendLine();
 
+            var config = await CreateJournalConfig(container);
+
             // Capture table creation first (without footer)
-            // Drop table first, then use TableOptions.None to force CREATE TABLE generation
             var tableSql = await CaptureTableCreationSql(
                 container,
-                async (dataConnection, connection, config) =>
+                config,
+                async (connection) =>
                 {
-                    await dataConnection.DropTableAsync<JournalTagRow>(throwExceptionIfNotExists: false);
                     await connection.CreateTableAsync<JournalTagRow>(
                         TableOptions.None,
                         null); // No footer yet
-                });
+                },
+                "tags",
+                config.TableConfig.TagTable.Name);
 
             sql.Append(tableSql);
 
             // Then add the footer SQL as a comment/separate section
-            var config = await CreateJournalConfig(container);
             var footer = config.GenerateTagFooter();
             if (!string.IsNullOrEmpty(footer))
             {
@@ -220,22 +225,27 @@ namespace Akka.Persistence.Sql.DdlGenerator
             sql.AppendLine("-- This table is used for delete-compatibility-mode");
             sql.AppendLine();
 
-            // Drop table first, then use TableOptions.None to force CREATE TABLE generation
+            // Enable compatibility mode to ensure metadata table mapping is applied
+            var config = await CreateJournalConfig(container, enableCompatibilityMode: true);
+
+            // Use TableOptions.None to force CREATE TABLE generation
             var capturedSql = await CaptureTableCreationSql(
                 container,
-                async (dataConnection, connection, config) =>
+                config,
+                async (connection) =>
                 {
-                    await dataConnection.DropTableAsync<JournalMetaData>(throwExceptionIfNotExists: false);
                     await connection.CreateTableAsync<JournalMetaData>(
                         TableOptions.None,
                         null);
-                });
+                },
+                "metadata",
+                config.TableConfig.MetadataTable.Name);
 
             sql.Append(capturedSql);
             return sql.ToString();
         }
 
-        private Task<JournalConfig> CreateJournalConfig(ITestContainer container)
+        private Task<JournalConfig> CreateJournalConfig(ITestContainer container, bool enableCompatibilityMode = false)
         {
             // Determine table-mapping based on provider
             var tableMapping = container.ProviderName.ToLowerInvariant() switch
@@ -252,6 +262,7 @@ namespace Akka.Persistence.Sql.DdlGenerator
                     connection-string = ""{container.ConnectionString}""
                     provider-name = ""{container.ProviderName}""
                     table-mapping = {tableMapping}
+                    delete-compatibility-mode = {enableCompatibilityMode.ToString().ToLowerInvariant()}
                 }}
             ")
             .WithFallback(SqlPersistence.DefaultConfiguration)
@@ -262,67 +273,182 @@ namespace Akka.Persistence.Sql.DdlGenerator
 
         private async Task<string> CaptureTableCreationSql(
             ITestContainer container,
-            Func<DataConnection, AkkaDataConnection, JournalConfig, Task> createAction)
+            JournalConfig config,
+            Func<AkkaDataConnection, Task> createAction,
+            string tableType,
+            string? expectedTableName = null)
         {
             var capturedSql = new StringBuilder();
 
-            var config = await CreateJournalConfig(container);
+            // Create a properly configured DataConnectionFactory with table/column mappings
+            var factory = new AkkaPersistenceDataConnectionFactory(config);
+            var connection = factory.GetConnection();
 
-            // Create connection with SQL tracing - capture ALL SQL for debugging
-            var options = new DataOptions()
-                .UseConnectionString(container.ProviderName, container.ConnectionString)
-                .UseTracing(info =>
-                {
-                    if (info.TraceInfoStep == TraceInfoStep.BeforeExecute &&
-                        info.CommandText != null)
-                    {
-                        Console.WriteLine($"[TRACE] {info.CommandText.Substring(0, Math.Min(100, info.CommandText.Length))}...");
+            // Execute the table creation to ensure it exists in the database
+            // The DataConnection now has proper MappingSchema with table/column name mappings
+            await createAction(connection);
 
-                        if ((info.CommandText.Contains("CREATE TABLE") ||
-                             info.CommandText.Contains("DROP TABLE") ||
-                             info.CommandText.Contains("ALTER TABLE") ||
-                             info.CommandText.Contains("CREATE INDEX") ||
-                             info.CommandText.Contains("CREATE UNIQUE INDEX")))
-                        {
-                            // Only capture CREATE TABLE, not DROP TABLE
-                            if (!info.CommandText.Contains("DROP TABLE"))
-                            {
-                                capturedSql.AppendLine(info.CommandText);
-                                capturedSql.AppendLine();
-                            }
-                        }
-                    }
-                });
-
-            await using var dataConnection = new DataConnection(options);
-            var connection = new AkkaDataConnection(container.ProviderName, dataConnection);
-
-            // Execute the table creation to capture SQL (with drops to force execution)
-            await createAction(dataConnection, connection, config);
-
-            // If no SQL was captured via tracing, generate DDL from schema
-            if (capturedSql.Length == 0)
+            // Generate CREATE TABLE statement from schema introspection
+            // The schema now has the correctly mapped table names from the MappingSchema
+            Console.WriteLine($"[INFO] Generating CREATE TABLE DDL from mapped schema...");
+            try
             {
-                Console.WriteLine("[DEBUG] No SQL captured via tracing, generating from SQL Builder...");
-                // Use Linq2Db's SQL builder to generate CREATE TABLE statement
-                try
+                var schema = connection.GetSchema();
+
+                // List all tables for debugging
+                Console.WriteLine($"[DEBUG] Found {schema.Tables.Count} tables in schema:");
+                foreach (var t in schema.Tables)
                 {
-                    var schema = connection.GetSchema();
-                    var journalTable = schema.Tables.FirstOrDefault(t => t.TableName.Contains("EventJournal") || t.TableName.Contains("tags") || t.TableName.Contains("SnapshotStore") || t.TableName.Contains("JournalMetaData"));
-                    if (journalTable != null)
-                    {
-                        capturedSql.AppendLine($"-- Table: {journalTable.TableName}");
-                        capturedSql.AppendLine($"-- Schema introspected after creation");
-                        capturedSql.AppendLine($"-- Columns: {string.Join(", ", journalTable.Columns.Select(c => $"{c.ColumnName} ({c.ColumnType})"))}");
-                    }
+                    Console.WriteLine($"[DEBUG]   - {t.SchemaName}.{t.TableName}");
                 }
-                catch (Exception ex)
+
+                // Find the table - it should now have the correct configured name
+                var table = expectedTableName != null
+                    ? schema.Tables.FirstOrDefault(t =>
+                        t.TableName.Equals(expectedTableName, StringComparison.OrdinalIgnoreCase))
+                    : schema.Tables.FirstOrDefault(t =>
+                        t.TableName.ToLowerInvariant().Contains("event") ||
+                        t.TableName.ToLowerInvariant().Contains("journal") ||
+                        t.TableName.ToLowerInvariant().Contains("tags") ||
+                        t.TableName.ToLowerInvariant().Contains("snapshot") ||
+                        t.TableName.ToLowerInvariant().Contains("metadata"));
+
+                if (table != null)
                 {
-                    Console.WriteLine($"[DEBUG] Schema introspection failed: {ex.Message}");
+                    Console.WriteLine($"[INFO] Found table: {table.SchemaName}.{table.TableName}");
+                    // Generate CREATE TABLE statement - table and column names are already correct from mapping
+                    var createTable = GenerateCreateTableFromSchema(table, container.ProviderName);
+                    capturedSql.AppendLine(createTable);
+                    capturedSql.AppendLine();
                 }
+                else
+                {
+                    Console.WriteLine($"[ERROR] Table for {tableType} not found in schema");
+                    capturedSql.AppendLine($"-- ERROR: Table for {tableType} not found in database schema");
+                    capturedSql.AppendLine();
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[ERROR] Schema introspection failed: {ex.Message}");
+                capturedSql.AppendLine("-- ERROR: Unable to retrieve schema information");
+                capturedSql.AppendLine($"-- {ex.Message}");
+                capturedSql.AppendLine();
+            }
+            finally
+            {
+                await connection.DisposeAsync();
             }
 
             return capturedSql.ToString();
+        }
+
+        private string GenerateCreateTableFromSchema(
+            LinqToDB.SchemaProvider.TableSchema table,
+            string providerName)
+        {
+            var sql = new StringBuilder();
+            var isSqlServer = providerName.ToLowerInvariant().Contains("sqlserver");
+            var isPostgreSql = providerName.ToLowerInvariant().Contains("postgre");
+            var isMySql = providerName.ToLowerInvariant().Contains("mysql");
+            var isSqlite = providerName.ToLowerInvariant().Contains("sqlite");
+
+            // Table and column names are already mapped correctly via MappingSchema
+            var fullTableName = string.IsNullOrEmpty(table.SchemaName)
+                ? QuoteIdentifier(table.TableName, providerName)
+                : $"{QuoteIdentifier(table.SchemaName, providerName)}.{QuoteIdentifier(table.TableName, providerName)}";
+
+            // Add IF NOT EXISTS check based on provider
+            if (isSqlServer)
+            {
+                sql.AppendLine($"IF NOT EXISTS (");
+                sql.AppendLine($"    SELECT 1");
+                sql.AppendLine($"    FROM sys.tables");
+                sql.AppendLine($"    WHERE");
+                if (!string.IsNullOrEmpty(table.SchemaName))
+                {
+                    sql.AppendLine($"        SCHEMA_NAME(schema_id) = '{table.SchemaName}' AND");
+                }
+                sql.AppendLine($"        name = '{table.TableName}'");
+                sql.AppendLine($")");
+                sql.AppendLine($"BEGIN");
+                sql.AppendLine($"    CREATE TABLE {fullTableName} (");
+            }
+            else if (isPostgreSql)
+            {
+                sql.AppendLine($"CREATE TABLE IF NOT EXISTS {fullTableName} (");
+            }
+            else if (isMySql)
+            {
+                sql.AppendLine($"CREATE TABLE IF NOT EXISTS {fullTableName} (");
+            }
+            else if (isSqlite)
+            {
+                sql.AppendLine($"CREATE TABLE IF NOT EXISTS {fullTableName} (");
+            }
+            else
+            {
+                sql.AppendLine($"CREATE TABLE {fullTableName} (");
+            }
+
+            // Add columns - names are already correctly mapped
+            var columnDefinitions = new List<string>();
+            foreach (var column in table.Columns)
+            {
+                var columnDef = new StringBuilder();
+                columnDef.Append($"    {QuoteIdentifier(column.ColumnName, providerName)} {column.ColumnType}");
+
+                if (!column.IsNullable)
+                {
+                    columnDef.Append(" NOT NULL");
+                }
+
+                if (column.IsIdentity && isSqlServer)
+                {
+                    columnDef.Append(" IDENTITY");
+                }
+
+                columnDefinitions.Add(columnDef.ToString());
+            }
+
+            // Add primary key constraint
+            var pkColumns = table.Columns.Where(c => c.IsPrimaryKey).ToList();
+            if (pkColumns.Any())
+            {
+                var pkColumnNames = string.Join(", ", pkColumns.Select(c => QuoteIdentifier(c.ColumnName, providerName)));
+                columnDefinitions.Add($"    CONSTRAINT {QuoteIdentifier($"PK_{table.TableName}", providerName)} PRIMARY KEY ({pkColumnNames})");
+            }
+
+            sql.AppendLine(string.Join($",{Environment.NewLine}", columnDefinitions));
+
+            // Close the CREATE TABLE statement
+            if (isSqlServer)
+            {
+                sql.AppendLine("    );");
+                sql.AppendLine("END");
+            }
+            else
+            {
+                sql.AppendLine(");");
+            }
+
+            return sql.ToString();
+        }
+
+        private string QuoteIdentifier(string identifier, string providerName)
+        {
+            var isPostgreSql = providerName.ToLowerInvariant().Contains("postgre");
+            var isSqlServer = providerName.ToLowerInvariant().Contains("sqlserver");
+            var isMySql = providerName.ToLowerInvariant().Contains("mysql");
+
+            if (isPostgreSql)
+                return $"\"{identifier}\"";
+            else if (isSqlServer)
+                return $"[{identifier}]";
+            else if (isMySql)
+                return $"`{identifier}`";
+            else
+                return identifier; // SQLite doesn't require quotes
         }
 
         private async Task<string> CaptureSnapshotTableCreationSql(
@@ -331,46 +457,63 @@ namespace Akka.Persistence.Sql.DdlGenerator
         {
             var capturedSql = new StringBuilder();
 
-            // Create connection with SQL tracing
-            var options = new DataOptions()
-                .UseConnectionString(container.ProviderName, container.ConnectionString)
-                .UseTracing(info =>
-                {
-                    if (info.TraceInfoStep == TraceInfoStep.BeforeExecute &&
-                        info.CommandText != null &&
-                        (info.CommandText.Contains("CREATE TABLE") ||
-                         info.CommandText.Contains("DROP TABLE") ||
-                         info.CommandText.Contains("ALTER TABLE") ||
-                         info.CommandText.Contains("CREATE INDEX") ||
-                         info.CommandText.Contains("CREATE UNIQUE INDEX")))
-                    {
-                        // Only capture CREATE TABLE, not DROP TABLE
-                        if (!info.CommandText.Contains("DROP TABLE"))
-                        {
-                            capturedSql.AppendLine(info.CommandText);
-                            capturedSql.AppendLine();
-                        }
-                    }
-                });
+            // Create a properly configured DataConnectionFactory with table/column mappings for snapshots
+            var factory = new AkkaPersistenceDataConnectionFactory(config);
+            var connection = factory.GetConnection();
 
-            await using var dataConnection = new DataConnection(options);
-            var connection = new AkkaDataConnection(container.ProviderName, dataConnection);
-
-            // Drop table first, then use TableOptions.None to force CREATE TABLE generation
-            // SQL Server uses DateTime, others use Long (ticks)
+            // Create the snapshot table (SQL Server uses DateTime, others use Long ticks)
             if (connection.UseDateTime)
             {
-                await dataConnection.DropTableAsync<DateTimeSnapshotRow>(throwExceptionIfNotExists: false);
                 await connection.CreateTableAsync<DateTimeSnapshotRow>(
                     TableOptions.None,
-                    null); // No footer yet
+                    null);
             }
             else
             {
-                await dataConnection.DropTableAsync<LongSnapshotRow>(throwExceptionIfNotExists: false);
                 await connection.CreateTableAsync<LongSnapshotRow>(
                     TableOptions.None,
-                    null); // No footer yet
+                    null);
+            }
+
+            // Generate CREATE TABLE statement from schema introspection
+            Console.WriteLine("[INFO] Generating snapshot CREATE TABLE DDL from mapped schema...");
+            try
+            {
+                var schema = connection.GetSchema();
+
+                // List all tables for debugging
+                Console.WriteLine($"[DEBUG] Found {schema.Tables.Count} tables in schema:");
+                foreach (var t in schema.Tables)
+                {
+                    Console.WriteLine($"[DEBUG]   - {t.SchemaName}.{t.TableName}");
+                }
+
+                var table = schema.Tables.FirstOrDefault(t => t.TableName.ToLowerInvariant().Contains("snapshot"));
+
+                if (table != null)
+                {
+                    Console.WriteLine($"[INFO] Found snapshot table: {table.SchemaName}.{table.TableName}");
+                    var createTable = GenerateCreateTableFromSchema(table, container.ProviderName);
+                    capturedSql.AppendLine(createTable);
+                    capturedSql.AppendLine();
+                }
+                else
+                {
+                    Console.WriteLine("[ERROR] Snapshot table not found in schema");
+                    capturedSql.AppendLine("-- ERROR: Snapshot table not found in database schema");
+                    capturedSql.AppendLine();
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[ERROR] Schema introspection failed: {ex.Message}");
+                capturedSql.AppendLine("-- ERROR: Unable to retrieve schema information");
+                capturedSql.AppendLine($"-- {ex.Message}");
+                capturedSql.AppendLine();
+            }
+            finally
+            {
+                await connection.DisposeAsync();
             }
 
             return capturedSql.ToString();

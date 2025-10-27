@@ -2,6 +2,26 @@
 -- Generated for SqlServer.2022
 -- This table stores actor state snapshots
 
+IF NOT EXISTS (
+    SELECT 1
+    FROM sys.tables
+    WHERE
+        SCHEMA_NAME(schema_id) = 'dbo' AND
+        name = 'SnapshotStore'
+)
+BEGIN
+    CREATE TABLE [dbo].[SnapshotStore] (
+    [PersistenceId] nvarchar(255) NOT NULL,
+    [SequenceNr] bigint NOT NULL,
+    [Timestamp] datetime2(7) NOT NULL,
+    [Snapshot] varbinary(max),
+    [Manifest] nvarchar(500),
+    [SerializerId] int,
+    CONSTRAINT [PK_SnapshotStore] PRIMARY KEY ([PersistenceId], [SequenceNr])
+    );
+END
+
+
 
 -- Additional constraints and indexes:
 ;

@@ -2,6 +2,19 @@
 -- Generated for PostgreSQL.15
 -- This table stores all persisted events
 
+CREATE TABLE IF NOT EXISTS "public"."event_journal" (
+    "ordering" bigint NOT NULL,
+    "created_at" bigint NOT NULL,
+    "is_deleted" boolean NOT NULL,
+    "persistence_id" text NOT NULL,
+    "sequence_nr" bigint NOT NULL,
+    "payload" bytea NOT NULL,
+    "manifest" text,
+    "serializer_id" integer,
+    CONSTRAINT "PK_event_journal" PRIMARY KEY ("ordering")
+);
+
+
 
 -- Additional constraints and indexes:
 ;

@@ -2,6 +2,24 @@
 -- Generated for SqlServer.2022
 -- This table stores tags in normalized form (TagMode.TagTable)
 
+IF NOT EXISTS (
+    SELECT 1
+    FROM sys.tables
+    WHERE
+        SCHEMA_NAME(schema_id) = 'dbo' AND
+        name = 'tags'
+)
+BEGIN
+    CREATE TABLE [dbo].[tags] (
+    [ordering_id] bigint NOT NULL,
+    [tag] nvarchar(64) NOT NULL,
+    [sequence_nr] bigint NOT NULL,
+    [persistence_id] nvarchar(255) NOT NULL,
+    CONSTRAINT [PK_tags] PRIMARY KEY ([ordering_id], [tag])
+    );
+END
+
+
 
 -- Additional constraints and indexes:
 ;
