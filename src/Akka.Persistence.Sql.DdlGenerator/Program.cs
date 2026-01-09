@@ -14,6 +14,7 @@ namespace Akka.Persistence.Sql.DdlGenerator
         private static readonly Option<string> OutputPath;
         private static readonly Option<bool> AllProviders;
         private static readonly Option<string?> Provider;
+        private static readonly Option<string> TableMapping;
 
         static Program()
         {
@@ -33,6 +34,11 @@ namespace Akka.Persistence.Sql.DdlGenerator
             Provider = new Option<string?>(
                 aliases: new[] { "--provider", "-p" },
                 description: "Generate DDL for specific provider (SqlServer, PostgreSQL, MySQL, SQLite)");
+
+            TableMapping = new Option<string>(
+                aliases: new[] { "--table-mapping", "-m" },
+                description: "Table mapping mode: 'default' (new deployments), 'compat' (legacy migration), or 'all' (both)",
+                getDefaultValue: () => "all");
         }
 
         public static async Task<int> Main(params string[] args)
@@ -43,23 +49,38 @@ namespace Akka.Persistence.Sql.DdlGenerator
             root.AddOption(OutputPath);
             root.AddOption(AllProviders);
             root.AddOption(Provider);
+            root.AddOption(TableMapping);
 
             root.SetHandler(
-                async (outputPath, all, provider) =>
+                async (outputPath, all, provider, tableMapping) =>
                 {
                     Console.WriteLine("Akka.Persistence.Sql DDL Generator");
                     Console.WriteLine("===================================");
                     Console.WriteLine();
 
+                    // Determine which table mappings to generate
+                    var mappings = tableMapping.ToLowerInvariant() switch
+                    {
+                        "default" => new[] { TableMappingMode.Default },
+                        "compat" => new[] { TableMappingMode.Compat },
+                        _ => new[] { TableMappingMode.Default, TableMappingMode.Compat }
+                    };
+
                     var generator = new DdlGenerator(outputPath);
 
                     if (!string.IsNullOrEmpty(provider))
                     {
-                        await generator.GenerateForProvider(provider);
+                        foreach (var mapping in mappings)
+                        {
+                            await generator.GenerateForProvider(provider, mapping);
+                        }
                     }
                     else if (all)
                     {
-                        await generator.GenerateAll();
+                        foreach (var mapping in mappings)
+                        {
+                            await generator.GenerateAll(mapping);
+                        }
                     }
                     else
                     {
@@ -73,7 +94,8 @@ namespace Akka.Persistence.Sql.DdlGenerator
                 },
                 OutputPath,
                 AllProviders,
-                Provider);
+                Provider,
+                TableMapping);
 
             return await root.InvokeAsync(args);
         }

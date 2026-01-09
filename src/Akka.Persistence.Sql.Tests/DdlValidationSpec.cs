@@ -28,12 +28,12 @@ namespace Akka.Persistence.Sql.Tests
             _output = output;
         }
 
-        private string GetDdlPath(string provider, string filename)
+        private string GetDdlPath(string mapping, string provider, string filename)
         {
             // Navigate from test assembly location to repository root
             var assemblyPath = Path.GetDirectoryName(typeof(DdlValidationSpec).Assembly.Location);
             var repoRoot = Path.GetFullPath(Path.Combine(assemblyPath!, "..", "..", "..", "..", ".."));
-            var ddlPath = Path.Combine(repoRoot, "docs", "ddl", provider, filename);
+            var ddlPath = Path.Combine(repoRoot, "docs", "ddl", mapping, provider, filename);
 
             _output.WriteLine($"Looking for DDL at: {ddlPath}");
 
@@ -54,66 +54,77 @@ namespace Akka.Persistence.Sql.Tests
             // Execute the DDL
             await connection.ExecuteAsync(sql);
 
-            _output.WriteLine($"✓ Successfully executed: {Path.GetFileName(ddlPath)}");
+            _output.WriteLine($"Successfully executed: {Path.GetFileName(ddlPath)}");
         }
 
-        [Fact]
-        public async Task SqlServer_DDL_Should_Execute_Successfully()
+        private async Task<ITestContainer> CreateContainer(string provider)
+        {
+            ITestContainer container = provider.ToLowerInvariant() switch
+            {
+                "sqlserver" => new SqlServerContainer(),
+                "postgresql" => new PostgreSqlContainer(),
+                "mysql" => new MySqlContainer(),
+                "sqlite" => new MsSqliteContainer(),
+                _ => throw new ArgumentException($"Unknown provider: {provider}")
+            };
+
+            await container.InitializeAsync();
+            return container;
+        }
+
+        [Theory]
+        [InlineData("compat", "sqlserver")]
+        [InlineData("compat", "postgresql")]
+        [InlineData("compat", "mysql")]
+        [InlineData("compat", "sqlite")]
+        [InlineData("default", "sqlserver")]
+        [InlineData("default", "postgresql")]
+        [InlineData("default", "mysql")]
+        [InlineData("default", "sqlite")]
+        public async Task DDL_Should_Execute_Successfully(string mapping, string provider)
         {
             // Arrange
-            await using var container = new SqlServerContainer();
-            await container.InitializeAsync();
+            await using var container = await CreateContainer(provider);
 
-            _output.WriteLine($"SQL Server container started: {container.ConnectionString}");
+            _output.WriteLine($"{provider} container started: {container.ConnectionString}");
+            _output.WriteLine($"Testing {mapping} mapping");
 
             await using var connection = new DataConnection(
                 container.ProviderName,
                 container.ConnectionString);
 
             // Act & Assert - Execute each DDL file
-            await ExecuteDdlFile(connection, GetDdlPath("sqlserver", "journal.sql"));
-            await ExecuteDdlFile(connection, GetDdlPath("sqlserver", "journal-tags.sql"));
-            await ExecuteDdlFile(connection, GetDdlPath("sqlserver", "snapshot.sql"));
-            await ExecuteDdlFile(connection, GetDdlPath("sqlserver", "metadata.sql"));
+            await ExecuteDdlFile(connection, GetDdlPath(mapping, provider, "journal.sql"));
+            await ExecuteDdlFile(connection, GetDdlPath(mapping, provider, "journal-tags.sql"));
+            await ExecuteDdlFile(connection, GetDdlPath(mapping, provider, "snapshot.sql"));
+            await ExecuteDdlFile(connection, GetDdlPath(mapping, provider, "metadata.sql"));
 
-            _output.WriteLine("✓ All SQL Server DDL files executed successfully");
+            _output.WriteLine($"All {provider} ({mapping}) DDL files executed successfully");
         }
 
-        [Fact]
-        public async Task PostgreSQL_DDL_Should_Execute_Successfully()
+        [Theory]
+        [InlineData("compat", "sqlserver")]
+        [InlineData("compat", "postgresql")]
+        [InlineData("compat", "mysql")]
+        [InlineData("compat", "sqlite")]
+        [InlineData("default", "sqlserver")]
+        [InlineData("default", "postgresql")]
+        [InlineData("default", "mysql")]
+        [InlineData("default", "sqlite")]
+        public async Task DDL_Should_Be_Idempotent(string mapping, string provider)
         {
             // Arrange
-            await using var container = new PostgreSqlContainer();
-            await container.InitializeAsync();
+            await using var container = await CreateContainer(provider);
 
-            _output.WriteLine($"PostgreSQL container started: {container.ConnectionString}");
-
-            await using var connection = new DataConnection(
-                container.ProviderName,
-                container.ConnectionString);
-
-            // Act & Assert - Execute each DDL file
-            await ExecuteDdlFile(connection, GetDdlPath("postgresql", "journal.sql"));
-            await ExecuteDdlFile(connection, GetDdlPath("postgresql", "journal-tags.sql"));
-            await ExecuteDdlFile(connection, GetDdlPath("postgresql", "snapshot.sql"));
-            await ExecuteDdlFile(connection, GetDdlPath("postgresql", "metadata.sql"));
-
-            _output.WriteLine("✓ All PostgreSQL DDL files executed successfully");
-        }
-
-        [Fact]
-        public async Task SqlServer_DDL_Should_Be_Idempotent()
-        {
-            // Arrange
-            await using var container = new SqlServerContainer();
-            await container.InitializeAsync();
+            _output.WriteLine($"{provider} container started");
+            _output.WriteLine($"Testing {mapping} mapping idempotency");
 
             await using var connection = new DataConnection(
                 container.ProviderName,
                 container.ConnectionString);
 
             // Act - Execute DDL twice to verify idempotency
-            var journalPath = GetDdlPath("sqlserver", "journal.sql");
+            var journalPath = GetDdlPath(mapping, provider, "journal.sql");
 
             await ExecuteDdlFile(connection, journalPath);
             _output.WriteLine("First execution completed");
@@ -123,32 +134,7 @@ namespace Akka.Persistence.Sql.Tests
             _output.WriteLine("Second execution completed - DDL is idempotent");
 
             // Assert
-            _output.WriteLine("✓ SQL Server DDL is idempotent");
-        }
-
-        [Fact]
-        public async Task PostgreSQL_DDL_Should_Be_Idempotent()
-        {
-            // Arrange
-            await using var container = new PostgreSqlContainer();
-            await container.InitializeAsync();
-
-            await using var connection = new DataConnection(
-                container.ProviderName,
-                container.ConnectionString);
-
-            // Act - Execute DDL twice to verify idempotency
-            var journalPath = GetDdlPath("postgresql", "journal.sql");
-
-            await ExecuteDdlFile(connection, journalPath);
-            _output.WriteLine("First execution completed");
-
-            // Should not throw on second execution
-            await ExecuteDdlFile(connection, journalPath);
-            _output.WriteLine("Second execution completed - DDL is idempotent");
-
-            // Assert
-            _output.WriteLine("✓ PostgreSQL DDL is idempotent");
+            _output.WriteLine($"{provider} ({mapping}) DDL is idempotent");
         }
     }
 }

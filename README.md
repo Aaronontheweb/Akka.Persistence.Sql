@@ -32,6 +32,7 @@ If you're migrating from legacy `Akka.Persistence.Sql.Common` based plugins, you
 - [Configuration](./docs/articles/configuration.md)
   * [Journal](./docs/articles/configuration.md#journal)
   * [Snapshot Store](./docs/articles/configuration.md#snapshot-store)
+- [DDL Scripts for Database Schema Management](#ddl-scripts-for-database-schema-management)
 - [Tuning Akka.Persistence.Query for Low-Latency Projections](#tuning-akkapersistencequery-for-low-latency-projections)
 - [Building this solution](#building-this-solution)
   + [Conventions](#conventions)
@@ -274,6 +275,27 @@ akka.persistence {
   - Table compatibility mode adds an additional InsertOrUpdate and Delete
 - **This all happens in a transaction**
   - In SQL Server this can cause issues because of page locks/etc.
+
+# DDL Scripts for Database Schema Management
+
+Pre-generated DDL scripts are available in [`docs/ddl/`](./docs/ddl/) for creating Akka.Persistence.Sql tables through your own migrations instead of relying on automatic table creation at runtime.
+
+**Directory Structure:**
+- `docs/ddl/default/` - For new deployments using `table-mapping = default`
+- `docs/ddl/compat/` - For migration from legacy plugins (uses provider-specific table mappings)
+
+Each directory contains SQL scripts for each supported provider (sqlserver, postgresql, mysql, sqlite):
+- `journal.sql` - Event journal table
+- `journal-tags.sql` - Tag table for `TagMode.TagTable`
+- `snapshot.sql` - Snapshot store table
+- `metadata.sql` - Metadata table for `delete-compatibility-mode`
+
+**When to use DDL scripts:**
+- When using Entity Framework Core or FluentMigrator for schema management
+- When you need explicit control over database schema versioning
+- When auto-initialization is disabled (`auto-initialize = false`)
+
+See the [DDL documentation](./docs/ddl/README.md) for detailed usage instructions and examples.
 
 # Tuning Akka.Persistence.Query for Low-Latency Projections
 

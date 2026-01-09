@@ -17,6 +17,24 @@ using LinqToDB.Mapping;
 
 namespace Akka.Persistence.Sql.DdlGenerator
 {
+    /// <summary>
+    /// Specifies the table naming convention for DDL generation.
+    /// </summary>
+    public enum TableMappingMode
+    {
+        /// <summary>
+        /// Generate DDL for the default table mapping (for new deployments).
+        /// Uses table names like 'journal', 'snapshot' with snake_case columns.
+        /// </summary>
+        Default,
+
+        /// <summary>
+        /// Generate DDL for legacy compatibility mappings (for migration from old plugins).
+        /// Uses provider-specific table names like 'EventJournal' (SQL Server), 'event_journal' (PostgreSQL).
+        /// </summary>
+        Compat
+    }
+
     public class DdlGenerator
     {
         private readonly string _outputPath;
@@ -26,17 +44,18 @@ namespace Akka.Persistence.Sql.DdlGenerator
             _outputPath = outputPath;
         }
 
-        public async Task GenerateAll()
+        public async Task GenerateAll(TableMappingMode mappingMode = TableMappingMode.Compat)
         {
-            await GenerateForProvider("SqlServer");
-            await GenerateForProvider("PostgreSQL");
-            await GenerateForProvider("MySQL");
-            await GenerateForProvider("SQLite");
+            await GenerateForProvider("SqlServer", mappingMode);
+            await GenerateForProvider("PostgreSQL", mappingMode);
+            await GenerateForProvider("MySQL", mappingMode);
+            await GenerateForProvider("SQLite", mappingMode);
         }
 
-        public async Task GenerateForProvider(string providerName)
+        public async Task GenerateForProvider(string providerName, TableMappingMode mappingMode = TableMappingMode.Compat)
         {
-            Console.WriteLine($"Generating DDL for {providerName}...");
+            var mappingName = mappingMode == TableMappingMode.Default ? "default" : "compat";
+            Console.WriteLine($"Generating DDL for {providerName} ({mappingName} mapping)...");
 
             ITestContainer? container = null;
             try
@@ -53,39 +72,39 @@ namespace Akka.Persistence.Sql.DdlGenerator
 
                 await container.InitializeAsync();
 
-                // Generate DDL files
-                var providerDir = Path.Combine(_outputPath, providerName.ToLowerInvariant());
+                // Generate DDL files in appropriate subdirectory
+                var providerDir = Path.Combine(_outputPath, mappingName, providerName.ToLowerInvariant());
                 Directory.CreateDirectory(providerDir);
 
                 // Generate Journal DDL
-                var journalSql = await GenerateJournalDdl(container);
+                var journalSql = await GenerateJournalDdl(container, mappingMode);
                 await File.WriteAllTextAsync(
                     Path.Combine(providerDir, "journal.sql"),
                     journalSql);
                 Console.WriteLine($"  ✓ journal.sql");
 
                 // Generate Journal Tags DDL
-                var tagsSql = await GenerateJournalTagsDdl(container);
+                var tagsSql = await GenerateJournalTagsDdl(container, mappingMode);
                 await File.WriteAllTextAsync(
                     Path.Combine(providerDir, "journal-tags.sql"),
                     tagsSql);
                 Console.WriteLine($"  ✓ journal-tags.sql");
 
                 // Generate Snapshot DDL
-                var snapshotSql = await GenerateSnapshotDdl(container);
+                var snapshotSql = await GenerateSnapshotDdl(container, mappingMode);
                 await File.WriteAllTextAsync(
                     Path.Combine(providerDir, "snapshot.sql"),
                     snapshotSql);
                 Console.WriteLine($"  ✓ snapshot.sql");
 
                 // Generate Metadata DDL (for compatibility mode)
-                var metadataSql = await GenerateMetadataDdl(container);
+                var metadataSql = await GenerateMetadataDdl(container, mappingMode);
                 await File.WriteAllTextAsync(
                     Path.Combine(providerDir, "metadata.sql"),
                     metadataSql);
                 Console.WriteLine($"  ✓ metadata.sql");
 
-                Console.WriteLine($"✓ Completed {providerName}");
+                Console.WriteLine($"✓ Completed {providerName} ({mappingName})");
             }
             finally
             {
@@ -96,15 +115,17 @@ namespace Akka.Persistence.Sql.DdlGenerator
             }
         }
 
-        private async Task<string> GenerateJournalDdl(ITestContainer container)
+        private async Task<string> GenerateJournalDdl(ITestContainer container, TableMappingMode mappingMode)
         {
             var sql = new StringBuilder();
+            var mappingName = mappingMode == TableMappingMode.Default ? "default" : "compat";
             sql.AppendLine("-- Journal Table DDL");
             sql.AppendLine($"-- Generated for {container.ProviderName}");
+            sql.AppendLine($"-- Table mapping: {mappingName}");
             sql.AppendLine("-- This table stores all persisted events");
             sql.AppendLine();
 
-            var config = await CreateJournalConfig(container);
+            var config = await CreateJournalConfig(container, mappingMode: mappingMode);
 
             // Capture table creation first (without footer)
             var tableSql = await CaptureTableCreationSql(
@@ -133,15 +154,17 @@ namespace Akka.Persistence.Sql.DdlGenerator
             return sql.ToString();
         }
 
-        private async Task<string> GenerateJournalTagsDdl(ITestContainer container)
+        private async Task<string> GenerateJournalTagsDdl(ITestContainer container, TableMappingMode mappingMode)
         {
             var sql = new StringBuilder();
+            var mappingName = mappingMode == TableMappingMode.Default ? "default" : "compat";
             sql.AppendLine("-- Journal Tags Table DDL");
             sql.AppendLine($"-- Generated for {container.ProviderName}");
+            sql.AppendLine($"-- Table mapping: {mappingName}");
             sql.AppendLine("-- This table stores tags in normalized form (TagMode.TagTable)");
             sql.AppendLine();
 
-            var config = await CreateJournalConfig(container);
+            var config = await CreateJournalConfig(container, mappingMode: mappingMode);
 
             // Capture table creation first (without footer)
             var tableSql = await CaptureTableCreationSql(
@@ -170,23 +193,27 @@ namespace Akka.Persistence.Sql.DdlGenerator
             return sql.ToString();
         }
 
-        private async Task<string> GenerateSnapshotDdl(ITestContainer container)
+        private async Task<string> GenerateSnapshotDdl(ITestContainer container, TableMappingMode mappingMode)
         {
             var sql = new StringBuilder();
+            var mappingName = mappingMode == TableMappingMode.Default ? "default" : "compat";
             sql.AppendLine("-- Snapshot Table DDL");
             sql.AppendLine($"-- Generated for {container.ProviderName}");
+            sql.AppendLine($"-- Table mapping: {mappingName}");
             sql.AppendLine("-- This table stores actor state snapshots");
             sql.AppendLine();
 
-            // Determine table-mapping based on provider
-            var tableMapping = container.ProviderName.ToLowerInvariant() switch
-            {
-                var p when p.Contains("sqlserver") => "sql-server",
-                var p when p.Contains("postgre") => "postgresql",  // PostgreSQL* contains "postgre"
-                var p when p.Contains("mysql") => "mysql",
-                var p when p.Contains("sqlite") => "sqlite",
-                _ => "sql-server"
-            };
+            // Determine table-mapping based on mode
+            var tableMapping = mappingMode == TableMappingMode.Default
+                ? "default"
+                : container.ProviderName.ToLowerInvariant() switch
+                {
+                    var p when p.Contains("sqlserver") => "sql-server",
+                    var p when p.Contains("postgre") => "postgresql",  // PostgreSQL* contains "postgre"
+                    var p when p.Contains("mysql") => "mysql",
+                    var p when p.Contains("sqlite") => "sqlite",
+                    _ => "sql-server"
+                };
 
             // Create snapshot config
             var hoconConfig = Akka.Configuration.ConfigurationFactory.ParseString($@"
@@ -217,16 +244,18 @@ namespace Akka.Persistence.Sql.DdlGenerator
             return sql.ToString();
         }
 
-        private async Task<string> GenerateMetadataDdl(ITestContainer container)
+        private async Task<string> GenerateMetadataDdl(ITestContainer container, TableMappingMode mappingMode)
         {
             var sql = new StringBuilder();
+            var mappingName = mappingMode == TableMappingMode.Default ? "default" : "compat";
             sql.AppendLine("-- Journal Metadata Table DDL");
             sql.AppendLine($"-- Generated for {container.ProviderName}");
+            sql.AppendLine($"-- Table mapping: {mappingName}");
             sql.AppendLine("-- This table is used for delete-compatibility-mode");
             sql.AppendLine();
 
             // Enable compatibility mode to ensure metadata table mapping is applied
-            var config = await CreateJournalConfig(container, enableCompatibilityMode: true);
+            var config = await CreateJournalConfig(container, enableCompatibilityMode: true, mappingMode: mappingMode);
 
             // Use TableOptions.None to force CREATE TABLE generation
             var capturedSql = await CaptureTableCreationSql(
@@ -245,17 +274,22 @@ namespace Akka.Persistence.Sql.DdlGenerator
             return sql.ToString();
         }
 
-        private Task<JournalConfig> CreateJournalConfig(ITestContainer container, bool enableCompatibilityMode = false)
+        private Task<JournalConfig> CreateJournalConfig(
+            ITestContainer container,
+            bool enableCompatibilityMode = false,
+            TableMappingMode mappingMode = TableMappingMode.Compat)
         {
-            // Determine table-mapping based on provider
-            var tableMapping = container.ProviderName.ToLowerInvariant() switch
-            {
-                var p when p.Contains("sqlserver") => "sql-server",
-                var p when p.Contains("postgre") => "postgresql",  // PostgreSQL* contains "postgre"
-                var p when p.Contains("mysql") => "mysql",
-                var p when p.Contains("sqlite") => "sqlite",
-                _ => "sql-server"
-            };
+            // Determine table-mapping based on mode
+            var tableMapping = mappingMode == TableMappingMode.Default
+                ? "default"
+                : container.ProviderName.ToLowerInvariant() switch
+                {
+                    var p when p.Contains("sqlserver") => "sql-server",
+                    var p when p.Contains("postgre") => "postgresql",  // PostgreSQL* contains "postgre"
+                    var p when p.Contains("mysql") => "mysql",
+                    var p when p.Contains("sqlite") => "sqlite",
+                    _ => "sql-server"
+                };
 
             var hoconConfig = Akka.Configuration.ConfigurationFactory.ParseString($@"
                 akka.persistence.journal.sql {{
