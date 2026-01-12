@@ -25,7 +25,7 @@ jobs:
         inputs:
           packageType: 'sdk'
           useGlobalJson: true
-          
+
       - pwsh: |
           .\build.ps1
         displayName: 'Update Release Notes'
@@ -37,111 +37,6 @@ jobs:
           command: 'build'
           arguments: '-c Release'
         continueOnError: false
-
-      # Linux or macOS - clean up Docker to free disk space before tests
-      - script: |
-          docker system prune -af --volumes
-          df -h /
-        displayName: 'Clean Docker cache (Linux)'
-        condition: in( variables['Agent.OS'], 'Linux', 'Darwin' )
-        continueOnError: true
-
-      # Azure hosted runners have limited disk space (~14GB) and the Docker images for
-      # SQL Server, PostgreSQL, and MySQL total ~3GB. Running all tests together exhausts
-      # disk space, so we run each database type separately with cleanup between.
-      # SQLite tests first (no Docker needed)
-      - task: DotNetCoreCLI@2
-        displayName: 'Linux Tests - SQLite'
-        inputs:
-          command: 'test'
-          publishTestResults: true
-          arguments: '--no-build -c Release --filter "FullyQualifiedName~Sqlite"'
-          projects: |
-            **/*.Tests.csproj
-            !**/*.Benchmark.*.csproj
-            !**/Examples/**/*.csproj
-        continueOnError: true
-        condition: in( variables['Agent.OS'], 'Linux', 'Darwin' )
-
-      # SQL Server tests
-      - task: DotNetCoreCLI@2
-        displayName: 'Linux Tests - SQL Server'
-        inputs:
-          command: 'test'
-          publishTestResults: true
-          arguments: '--no-build -c Release --filter "FullyQualifiedName~SqlServer"'
-          projects: |
-            **/*.Tests.csproj
-            !**/*.Benchmark.*.csproj
-            !**/Examples/**/*.csproj
-        continueOnError: true
-        condition: in( variables['Agent.OS'], 'Linux', 'Darwin' )
-
-      # Clean up SQL Server Docker resources
-      - script: |
-          docker system prune -af --volumes
-          df -h /
-        displayName: 'Clean Docker after SQL Server tests'
-        condition: in( variables['Agent.OS'], 'Linux', 'Darwin' )
-        continueOnError: true
-
-      # PostgreSQL tests
-      - task: DotNetCoreCLI@2
-        displayName: 'Linux Tests - PostgreSQL'
-        inputs:
-          command: 'test'
-          publishTestResults: true
-          arguments: '--no-build -c Release --filter "FullyQualifiedName~PostgreSql"'
-          projects: |
-            **/*.Tests.csproj
-            !**/*.Benchmark.*.csproj
-            !**/Examples/**/*.csproj
-        continueOnError: true
-        condition: in( variables['Agent.OS'], 'Linux', 'Darwin' )
-
-      # Clean up PostgreSQL Docker resources
-      - script: |
-          docker system prune -af --volumes
-          df -h /
-        displayName: 'Clean Docker after PostgreSQL tests'
-        condition: in( variables['Agent.OS'], 'Linux', 'Darwin' )
-        continueOnError: true
-
-      # MySQL tests
-      - task: DotNetCoreCLI@2
-        displayName: 'Linux Tests - MySQL'
-        inputs:
-          command: 'test'
-          publishTestResults: true
-          arguments: '--no-build -c Release --filter "FullyQualifiedName~MySql"'
-          projects: |
-            **/*.Tests.csproj
-            !**/*.Benchmark.*.csproj
-            !**/Examples/**/*.csproj
-        continueOnError: true
-        condition: in( variables['Agent.OS'], 'Linux', 'Darwin' )
-
-      # Clean up MySQL Docker resources
-      - script: |
-          docker system prune -af --volumes
-          df -h /
-        displayName: 'Clean Docker after MySQL tests'
-        condition: in( variables['Agent.OS'], 'Linux', 'Darwin' )
-        continueOnError: true
-
-      # Run any remaining tests (DDL validation, etc.) that don't match the above filters
-      - task: DotNetCoreCLI@2
-        displayName: 'Linux Tests - Other'
-        inputs:
-          command: 'test'
-          publishTestResults: true
-          arguments: '--no-build -c Release --filter "FullyQualifiedName!~Sqlite&FullyQualifiedName!~SqlServer&FullyQualifiedName!~PostgreSql&FullyQualifiedName!~MySql"'
-          projects: |
-            **/*.Tests.csproj
-            !**/*.Benchmark.*.csproj
-            !**/Examples/**/*.csproj
-        continueOnError: true
-        condition: in( variables['Agent.OS'], 'Linux', 'Darwin' )
 
       # Windows
       - task: DotNetCoreCLI@2

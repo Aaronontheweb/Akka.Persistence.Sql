@@ -12,6 +12,7 @@ pr:
 name: $(SourceBranchName)_$(Year:yyyy).$(Month).$(DayOfMonth)$(Rev:.r)
 
 jobs:
+  # Windows runs all tests in a single job (no Docker disk space issues)
   - template: azure-pipeline.template.yaml
     parameters:
       name: 'windows_pr'
@@ -20,10 +21,29 @@ jobs:
       outputDirectory: 'bin/nuget'
       artifactName: 'nuget_pack-$(Build.BuildId)'
 
-  - template: azure-pipeline.template.yaml
+  # Linux tests are split by database type to run in parallel on separate VMs.
+  # This avoids disk space exhaustion from large Docker images (~3GB total for
+  # SQL Server, PostgreSQL, and MySQL) on Azure hosted runners (~14GB disk).
+  - template: linux-test.template.yaml
     parameters:
-      name: 'linux_pr'
-      displayName: 'Linux PR Validation'
-      vmImage: 'ubuntu-latest'
-      outputDirectory: 'bin/nuget'
-      artifactName: 'nuget_pack-$(Build.BuildId)'
+      name: 'linux_sqlite'
+      displayName: 'Linux - SQLite'
+      testFilter: 'FullyQualifiedName~Sqlite'
+
+  - template: linux-test.template.yaml
+    parameters:
+      name: 'linux_sqlserver'
+      displayName: 'Linux - SQL Server'
+      testFilter: 'FullyQualifiedName~SqlServer'
+
+  - template: linux-test.template.yaml
+    parameters:
+      name: 'linux_postgresql'
+      displayName: 'Linux - PostgreSQL'
+      testFilter: 'FullyQualifiedName~PostgreSql'
+
+  - template: linux-test.template.yaml
+    parameters:
+      name: 'linux_mysql'
+      displayName: 'Linux - MySQL'
+      testFilter: 'FullyQualifiedName~MySql'
