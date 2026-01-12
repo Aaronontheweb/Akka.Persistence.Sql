@@ -8,6 +8,7 @@ using System;
 using System.IO;
 using System.Threading.Tasks;
 using Akka.Persistence.Sql.Tests.Common.Containers;
+using Akka.Persistence.Sql.Tests.Common.Internal.Xunit;
 using FluentAssertions;
 using LinqToDB.Data;
 using Xunit;
@@ -19,6 +20,7 @@ namespace Akka.Persistence.Sql.Tests
     /// Validates that the generated DDL files in docs/ddl/ execute successfully
     /// against real database instances.
     /// </summary>
+    [SkipWindows]
     public class DdlValidationSpec
     {
         private readonly ITestOutputHelper _output;
