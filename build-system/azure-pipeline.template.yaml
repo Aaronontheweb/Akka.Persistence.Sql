@@ -38,7 +38,14 @@ jobs:
           arguments: '-c Release'
         continueOnError: false
 
-      # Linux or macOS
+      # Linux or macOS - clean up Docker to free disk space
+      - script: |
+          docker system prune -af --volumes
+          df -h /
+        displayName: 'Clean Docker cache (Linux)'
+        condition: in( variables['Agent.OS'], 'Linux', 'Darwin' )
+        continueOnError: true
+
       - task: DotNetCoreCLI@2
         displayName: Linux Unit Tests
         inputs:
