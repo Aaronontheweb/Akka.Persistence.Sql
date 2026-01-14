@@ -198,10 +198,7 @@ namespace Akka.Persistence.Sql.Tests
                 // Step 6: Recreate actor with same persistence ID - should recover from snapshot
                 var actor2 = sys.ActorOf(Props.Create(() => new TaggedPersistentActor(persistenceId)), "actor-2");
 
-                // Give it time to recover
-                await Task.Delay(1.Seconds());
-
-                // Step 7: Verify recovery
+                // Step 7: Verify recovery (stashing handles message delivery during recovery)
                 var state2 = await actor2.Ask<IReadOnlyList<string>>(new GetState(), 5.Seconds());
                 state2.Count.Should().Be(4, "Actor should have recovered all 4 events");
                 state2.Should().BeEquivalentTo(state1, "Recovered state should match original");
