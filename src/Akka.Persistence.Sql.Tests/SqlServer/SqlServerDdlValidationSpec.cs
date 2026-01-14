@@ -1,0 +1,50 @@
+// -----------------------------------------------------------------------
+//  <copyright file="SqlServerDdlValidationSpec.cs" company="Akka.NET Project">
+//      Copyright (C) 2013-2023 .NET Foundation <https://github.com/akkadotnet/akka.net>
+//  </copyright>
+// -----------------------------------------------------------------------
+
+using System.Threading.Tasks;
+using Akka.Persistence.Sql.Tests.Common.Containers;
+using Akka.Persistence.Sql.Tests.Common.Internal.Xunit;
+using Xunit;
+using Xunit.Abstractions;
+
+namespace Akka.Persistence.Sql.Tests.SqlServer
+{
+    [SkipWindows]
+    [Collection(nameof(SqlServerPersistenceSpec))]
+    public class SqlServerDdlValidationSpec : DdlValidationSpecBase
+    {
+        protected override string ProviderName => "sqlserver";
+
+        public SqlServerDdlValidationSpec(ITestOutputHelper output, SqlServerContainer fixture)
+            : base(output, fixture)
+        {
+        }
+
+        [Fact]
+        public Task Default_DDL_Should_Execute_Successfully()
+            => ValidateDdlFiles("default");
+
+        [Fact]
+        public Task Compat_DDL_Should_Execute_Successfully()
+            => ValidateDdlFiles("compat");
+
+        [Fact]
+        public Task Default_DDL_Should_Be_Idempotent()
+            => ValidateDdlIdempotency("default");
+
+        [Fact]
+        public Task Compat_DDL_Should_Be_Idempotent()
+            => ValidateDdlIdempotency("compat");
+
+        [Fact]
+        public Task Default_DDL_Should_Work_With_AkkaPersistence()
+            => ValidatePersistenceIntegration("default");
+
+        [Fact]
+        public Task Compat_DDL_Should_Work_With_AkkaPersistence()
+            => ValidatePersistenceIntegration("compat");
+    }
+}

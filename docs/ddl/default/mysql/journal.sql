@@ -4,16 +4,19 @@
 
 CREATE TABLE IF NOT EXISTS `journal` (
     `ordering` bigint NOT NULL AUTO_INCREMENT,
-    `created` bigint NOT NULL,
-    `deleted` tinyint(1) NOT NULL,
+    `deleted` tinyint(1) NOT NULL DEFAULT 0,
     `persistence_id` varchar(255) NOT NULL,
     `sequence_number` bigint NOT NULL,
+    `created` bigint NOT NULL,
+    `tags` text,
     `message` longblob NOT NULL,
+    `identifier` int,
     `manifest` varchar(500),
-    `serializer_id` int,
+    `writer_uuid` varchar(128),
     PRIMARY KEY (`ordering`),
     UNIQUE KEY `journal_uq` (`persistence_id`, `sequence_number`),
+    INDEX `journal_ordering_idx` (`ordering`),
     INDEX `journal_created_idx` (`created`),
-    INDEX `journal_sequence_number_idx` (`sequence_number`)
+    INDEX `journal_persistence_id_idx` (`persistence_id`)
 ) ENGINE=InnoDB;
 

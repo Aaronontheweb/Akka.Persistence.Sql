@@ -11,22 +11,21 @@ IF NOT EXISTS (
 )
 BEGIN
     CREATE TABLE [dbo].[journal] (
-    [ordering] bigint NOT NULL IDENTITY,
-    [created] bigint NOT NULL,
-    [deleted] bit NOT NULL,
-    [persistence_id] nvarchar(255) NOT NULL,
-    [sequence_number] bigint NOT NULL,
-    [message] varbinary(max) NOT NULL,
-    [manifest] nvarchar(500),
-    [serializer_id] int,
-    CONSTRAINT [PK_journal] PRIMARY KEY ([ordering])
+        [ordering] bigint NOT NULL IDENTITY,
+        [deleted] bit NOT NULL DEFAULT 0,
+        [persistence_id] nvarchar(255) NOT NULL,
+        [sequence_number] bigint NOT NULL,
+        [created] bigint NOT NULL,
+        [tags] nvarchar(max),
+        [message] varbinary(max) NOT NULL,
+        [identifier] int,
+        [manifest] nvarchar(500),
+        [writer_uuid] nvarchar(128),
+        CONSTRAINT [PK_journal] PRIMARY KEY ([ordering])
     );
 END
 
-
-
 -- Additional constraints and indexes:
-;
 
 IF NOT EXISTS (
     SELECT 1
@@ -54,15 +53,15 @@ IF NOT EXISTS (
     FROM sys.indexes
     WHERE
         object_id = OBJECT_ID('dbo.journal') AND
-        name = 'IX_journal_sequence_number'
+        name = 'IX_journal_ordering'
 )
 BEGIN TRY
-    CREATE INDEX IX_journal_sequence_number ON dbo.journal(sequence_number);
+    CREATE INDEX IX_journal_ordering ON dbo.journal(ordering);
 END TRY
 BEGIN CATCH
     IF ERROR_NUMBER() = 1913 -- Error code for 'index already exists'
     BEGIN
-        PRINT 'Index IX_journal_sequence_number already exists, skipping.';
+        PRINT 'Index IX_journal_ordering already exists, skipping.';
     END
     ELSE
     BEGIN
@@ -84,6 +83,27 @@ BEGIN CATCH
     IF ERROR_NUMBER() = 1913 -- Error code for 'index already exists'
     BEGIN
         PRINT 'Index IX_journal_created already exists, skipping.';
+    END
+    ELSE
+    BEGIN
+        THROW;
+    END
+END CATCH;
+
+IF NOT EXISTS (
+    SELECT 1
+    FROM sys.indexes
+    WHERE
+        object_id = OBJECT_ID('dbo.journal') AND
+        name = 'IX_journal_persistence_id'
+)
+BEGIN TRY
+    CREATE INDEX IX_journal_persistence_id ON dbo.journal(persistence_id);
+END TRY
+BEGIN CATCH
+    IF ERROR_NUMBER() = 1913 -- Error code for 'index already exists'
+    BEGIN
+        PRINT 'Index IX_journal_persistence_id already exists, skipping.';
     END
     ELSE
     BEGIN
