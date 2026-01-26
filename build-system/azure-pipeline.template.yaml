@@ -25,7 +25,7 @@ jobs:
         inputs:
           packageType: 'sdk'
           useGlobalJson: true
-          
+
       - pwsh: |
           .\build.ps1
         displayName: 'Update Release Notes'
@@ -37,21 +37,6 @@ jobs:
           command: 'build'
           arguments: '-c Release'
         continueOnError: false
-
-      # Linux or macOS
-      - task: DotNetCoreCLI@2
-        displayName: Linux Unit Tests
-        inputs:
-          command: 'test'
-          publishTestResults: true
-          arguments: '--no-build -c Release'
-          projects: |
-            **/*.Tests.csproj
-            **/*.DockerTests.csproj
-            !**/*.Benchmark.*.csproj
-            !**/Examples/**/*.csproj
-        continueOnError: true
-        condition: in( variables['Agent.OS'], 'Linux', 'Darwin' )
 
       # Windows
       - task: DotNetCoreCLI@2

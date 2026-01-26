@@ -1,0 +1,66 @@
+# Template for running Linux tests filtered by database type
+# Each instance runs on its own VM to avoid disk space issues
+parameters:
+  name: ''
+  displayName: ''
+  testFilter: ''  # XUnit filter, e.g., "FullyQualifiedName~SqlServer"
+  timeoutInMinutes: 60
+
+jobs:
+  - job: ${{ parameters.name }}
+    displayName: ${{ parameters.displayName }}
+    timeoutInMinutes: ${{ parameters.timeoutInMinutes }}
+
+    pool:
+      vmImage: 'ubuntu-latest'
+
+    steps:
+      - checkout: self
+        clean: false
+        submodules: recursive
+        persistCredentials: true
+
+      - task: UseDotNet@2
+        displayName: 'Use .NET'
+        inputs:
+          packageType: 'sdk'
+          useGlobalJson: true
+
+      - task: DotNetCoreCLI@2
+        displayName: Build
+        inputs:
+          command: 'build'
+          arguments: '-c Release'
+        continueOnError: false
+
+      - script: |
+          docker system prune -af --volumes
+          df -h /
+        displayName: 'Clean Docker cache'
+        continueOnError: true
+
+      - task: DotNetCoreCLI@2
+        displayName: 'Run Tests'
+        inputs:
+          command: 'test'
+          publishTestResults: true
+          arguments: '--no-build -c Release --filter "${{ parameters.testFilter }}"'
+          projects: |
+            **/*.Tests.csproj
+            !**/*.Benchmark.*.csproj
+            !**/Examples/**/*.csproj
+        continueOnError: true
+
+      - task: PublishTestResults@2
+        inputs:
+          testResultsFormat: VSTest
+          testResultsFiles: '**/*.trx'
+          testRunTitle: ${{ parameters.name }}
+          mergeTestResults: true
+          failTaskOnFailedTests: false
+          publishRunAttachments: true
+
+      - script: 'echo 1>&2'
+        failOnStderr: true
+        displayName: 'If above is partially succeeded, then fail'
+        condition: eq(variables['Agent.JobStatus'], 'SucceededWithIssues')
