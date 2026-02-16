@@ -1,3 +1,9 @@
+#### 1.5.60.1 February 14th 2026 ####
+
+* [Bump Akka.NET to 1.5.60](https://github.com/akkadotnet/akka.net/releases/tag/1.5.60)
+* [Bump Akka.Hosting to 1.5.60](https://github.com/akkadotnet/Akka.Hosting/releases/tag/1.5.60)
+* [Fix linq2db assembly binding conflict](https://github.com/akkadotnet/Akka.Persistence.Sql/pull/572) - bumped `linq2db` from 5.4.1 to 5.4.1.9 to resolve assembly version mismatch that prevented projects from building when NuGet resolved the newer package version.
+
 #### 1.5.59 January 26th 2026 ####
 
 * [Bump Akka.NET to 1.5.59](https://github.com/akkadotnet/akka.net/releases/tag/1.5.59)
