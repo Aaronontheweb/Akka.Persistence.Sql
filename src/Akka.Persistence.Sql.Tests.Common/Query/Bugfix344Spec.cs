@@ -69,7 +69,7 @@ namespace Akka.Persistence.Sql.Tests.Common.Query
                       akka.persistence.journal.plugin = "akka.persistence.journal.sql"
                       akka.persistence.journal.sql {
                           event-adapters {
-                              color-tagger  = "Akka.Persistence.TCK.Query.ColorFruitTagger, Akka.Persistence.TCK"
+                              color-tagger  = "Akka.Persistence.TCK.Query.ColorFruitTagger, Akka.Persistence.TCK.Xunit2"
                           }
                           event-adapter-bindings = {
                               "System.String" = color-tagger

@@ -9,7 +9,8 @@
     <PackageReference Include="Akka.Cluster.Sharding" />
     <PackageReference Include="Akka.Hosting" />
     <PackageReference Include="Akka.Persistence.Sql.Compat.Common" />
-    <PackageReference Include="Akka.Persistence.TCK" />
+    <PackageReference Include="Akka.Persistence.TCK.Xunit2" />
+    <PackageReference Include="FluentAssertions" />
     <PackageReference Include="Akka.Persistence.TestKit" />
 
     <PackageReference Include="Microsoft.NET.Test.Sdk" />

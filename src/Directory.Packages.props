@@ -1,8 +1,8 @@
 <Project>
   <PropertyGroup>
     <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
-    <AkkaVersion>1.5.62</AkkaVersion>
-    <AkkaHostingVersion>1.5.62</AkkaHostingVersion>
+    <AkkaVersion>1.5.66</AkkaVersion>
+    <AkkaHostingVersion>1.5.65</AkkaHostingVersion>
     <FluentMigratorVersion>5.2.0</FluentMigratorVersion>
     <SqliteVersion>1.0.118</SqliteVersion>
     <MicrosoftSqliteVersion>8.0.7</MicrosoftSqliteVersion>
@@ -17,7 +17,7 @@
     <PackageVersion Include="Akka.Persistence" Version="$(AkkaVersion)" />
     <PackageVersion Include="Akka.Persistence.Hosting" Version="$(AkkaHostingVersion)" />
     <PackageVersion Include="Akka.Persistence.Sql.Compat.Common" Version="0.1.0" />
-    <PackageVersion Include="Akka.Persistence.TCK" Version="$(AkkaVersion)" />
+    <PackageVersion Include="Akka.Persistence.TCK.Xunit2" Version="$(AkkaVersion)" />
     <PackageVersion Include="Akka.Persistence.TestKit" Version="$(AkkaVersion)" />
     <PackageVersion Include="Akka.Persistence.Query" Version="$(AkkaVersion)" />
     <PackageVersion Include="Akka.Serialization.Hyperion" Version="$(AkkaVersion)" />
@@ -67,7 +67,7 @@
   </ItemGroup>
   <!-- Test dependencies -->
   <ItemGroup>
-    <PackageVersion Include="Akka.Hosting.TestKit" Version="$(AkkaHostingVersion)" />
+    <PackageVersion Include="Akka.Hosting.TestKit.Xunit2" Version="$(AkkaHostingVersion)" />
     <PackageVersion Include="BenchmarkDotNet" Version="0.14.0" />
     <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="17.11.1" />
     <PackageVersion Include="Docker.DotNet" Version="3.125.15" />

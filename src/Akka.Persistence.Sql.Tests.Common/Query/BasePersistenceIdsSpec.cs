@@ -49,10 +49,10 @@ namespace Akka.Persistence.Sql.Tests.Common.Query
 akka.loglevel = INFO
 akka.actor{{
     serializers{{
-        persistence-tck-test=""Akka.Persistence.TCK.Serialization.TestSerializer,Akka.Persistence.TCK""
+        persistence-tck-test=""Akka.Persistence.TCK.Serialization.TestSerializer,Akka.Persistence.TCK.Xunit2""
     }}
     serialization-bindings {{
-        ""Akka.Persistence.TCK.Serialization.TestPayload,Akka.Persistence.TCK"" = persistence-tck-test
+        ""Akka.Persistence.TCK.Serialization.TestPayload,Akka.Persistence.TCK.Xunit2"" = persistence-tck-test
     }}
 }}
 akka.persistence {{
