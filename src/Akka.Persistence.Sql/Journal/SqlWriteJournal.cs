@@ -43,7 +43,6 @@ namespace Akka.Persistence.Sql.Journal
         [Obsolete(message: "Use SqlPersistence.DefaultConfiguration or SqlPersistence.Get(ActorSystem).DefaultConfig instead")]
         public static readonly Configuration.Config DefaultConfiguration = SqlPersistence.DefaultConfiguration;
 
-        private readonly IActorRef _self;
         private readonly JournalConfig _journalConfig;
         private readonly ILoggingAdapter _log;
         private readonly CancellationTokenSource _pendingWriteCts;
@@ -57,7 +56,6 @@ namespace Akka.Persistence.Sql.Journal
 
         public SqlWriteJournal(Configuration.Config journalConfig)
         {
-            _self = Self;
             _log = Context.GetLogger();
             _pendingWriteCts = new CancellationTokenSource();
 
@@ -229,11 +227,12 @@ namespace Akka.Persistence.Sql.Journal
             var future = _journal!.AsyncWriteMessages(messagesList, cancellationToken, currentTime);
 
             _writeInProgress[persistenceId] = future;
+            var self = Self;
 
             // When we are done, we want to send a 'WriteFinished' so that
             // Sequence Number reads won't block/await/etc.
             future.ContinueWith(
-                continuationAction: p => _self.Tell(new WriteFinished(persistenceId, p)),
+                continuationAction: p => self.Tell(new WriteFinished(persistenceId, p)),
                 cancellationToken: _pendingWriteCts.Token,
                 continuationOptions: TaskContinuationOptions.ExecuteSynchronously,
                 scheduler: TaskScheduler.Default);
